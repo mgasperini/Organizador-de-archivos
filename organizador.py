@@ -1,9 +1,10 @@
 import sys
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QWidget, QPushButton, QLabel, 
-    QComboBox, QFileDialog, QListView, QStackedWidget, QProgressBar, QHBoxLayout
+    QComboBox, QFileDialog, QListView, QStackedWidget, QProgressBar, QHBoxLayout,
+    QTreeWidget, QTreeWidgetItem
 )
-from PyQt5.QtCore import Qt, QDir, QThread, pyqtSignal, QModelIndex
+from PyQt5.QtCore import Qt, QDir, QThread, pyqtSignal, QModelIndex, QSize
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QFileSystemModel
 import os
@@ -79,37 +80,77 @@ class FileOrganizerWidget(QWidget):
         super().__init__(parent)
         self.setup_ui()
         self.current_directory = QDir.homePath()
+        self.history = []
+        self.history_index = -1
         self.initialize_models()
 
     def setup_ui(self):
         self.main_layout = QHBoxLayout(self)
 
-        # Botones de funcionalidades
-        self.function_buttons_layout = QVBoxLayout()
-        self.function_buttons_layout.setAlignment(Qt.AlignTop)
-        
+        # Barra lateral
+        self.sidebar_layout = QVBoxLayout()
+        self.sidebar_layout.setAlignment(Qt.AlignTop)
+
         self.reorganize_button = QPushButton("Reorganizar Archivos")
-        self.reorganize_button.clicked.connect(self.show_reorganize_view)
-        self.function_buttons_layout.addWidget(self.reorganize_button)
+        self.sidebar_layout.addWidget(self.reorganize_button)
 
         # Placeholder para futuros botones
         self.duplicates_button = QPushButton("Eliminar Duplicados")
-        self.duplicates_button.setEnabled(False)  # Funcionalidad futura
-        self.function_buttons_layout.addWidget(self.duplicates_button)
+        self.duplicates_button.setEnabled(False)
+        self.sidebar_layout.addWidget(self.duplicates_button)
 
-        self.main_layout.addLayout(self.function_buttons_layout)
+        self.main_layout.addLayout(self.sidebar_layout)
+
+        # Área principal
+        self.content_layout = QVBoxLayout()
+
+        # Barra superior con botones de navegación
+        self.top_bar_layout = QHBoxLayout()
+
+        self.home_button = QPushButton()
+        self.home_button.setIcon(QIcon("Assets/home.svg"))
+        self.home_button.setToolTip("Adelante")
+        self.home_button.clicked.connect(self.navigate_home)
+        self.top_bar_layout.addWidget(self.home_button)
+
+        self.back_button = QPushButton()
+        self.back_button.setIcon(QIcon("Assets/flecha-pequena-izquierda.svg"))
+        self.back_button.setToolTip("Volver atrás")
+        self.back_button.clicked.connect(self.navigate_back)
+        self.top_bar_layout.addWidget(self.back_button)
+
+        self.forward_button = QPushButton()
+        self.forward_button.setIcon(QIcon("Assets/Adelante.svg"))
+        self.forward_button.setToolTip("Adelante")
+        self.forward_button.clicked.connect(self.navigate_forward)
+        self.top_bar_layout.addWidget(self.forward_button)
+
+        self.up_button = QPushButton()
+        self.up_button.setIcon(QIcon('Assets/arriba.svg'))
+        self.up_button.setToolTip("Subir un nivel")
+        self.up_button.clicked.connect(self.go_up_directory)
+        self.top_bar_layout.addWidget(self.up_button)
+
+        self.select_folder_button = QPushButton("Seleccionar Carpeta")
+        self.select_folder_button.clicked.connect(self.select_folder)
+        self.top_bar_layout.addWidget(self.select_folder_button)
+
+        self.date_view_button = QPushButton("Ver por Fechas")
+        self.date_view_button.clicked.connect(self.toggle_date_view)
+        self.top_bar_layout.addWidget(self.date_view_button)
+
+        self.top_bar_layout.addStretch()
+        self.content_layout.addLayout(self.top_bar_layout)
 
         # Stack de vistas
         self.stack_widget = QStackedWidget()
-        self.main_layout.addWidget(self.stack_widget)
+        self.content_layout.addWidget(self.stack_widget)
+
+        self.main_layout.addLayout(self.content_layout)
 
         # Vista de reorganización de archivos
         self.reorganize_view = QWidget()
         self.reorganize_layout = QVBoxLayout(self.reorganize_view)
-
-        self.select_folder_button = QPushButton("Seleccionar Carpeta")
-        self.select_folder_button.clicked.connect(self.select_folder)
-        self.reorganize_layout.addWidget(self.select_folder_button)
 
         self.file_list = QListView()
         self.file_list.doubleClicked.connect(self.navigate_directory)
@@ -120,6 +161,17 @@ class FileOrganizerWidget(QWidget):
         self.reorganize_layout.addWidget(self.progress_bar)
 
         self.stack_widget.addWidget(self.reorganize_view)
+
+        # Vista de archivos por fechas
+        self.date_view = QWidget()
+        self.date_layout = QVBoxLayout(self.date_view)
+
+        self.date_tree = QTreeWidget()
+        self.date_tree.setHeaderLabels(["Fecha", "Directorio/Archivo"])
+        self.date_tree.setColumnWidth(0,200)
+        self.date_layout.addWidget(self.date_tree)
+
+        self.stack_widget.addWidget(self.date_view)
 
     def initialize_models(self):
         # Modelo de sistema de archivos
@@ -133,15 +185,80 @@ class FileOrganizerWidget(QWidget):
         if folder:
             self.current_directory = folder
             self.file_list.setRootIndex(self.fs_model.index(self.current_directory))
+            self.update_history(folder)
 
     def navigate_directory(self, index: QModelIndex):
         if self.fs_model.isDir(index):
             new_path = self.fs_model.filePath(index)
             self.current_directory = new_path
             self.file_list.setRootIndex(self.fs_model.index(new_path))
+            self.update_history(new_path)
 
-    def show_reorganize_view(self):
-        self.stack_widget.setCurrentWidget(self.reorganize_view)
+    def go_up_directory(self):
+        new_path = os.path.dirname(self.current_directory)
+        if os.path.exists(new_path):
+            self.current_directory = new_path
+            self.file_list.setRootIndex(self.fs_model.index(self.current_directory))
+            self.update_history(new_path)
+
+    def navigate_back(self):
+        if self.history_index > 0:
+            self.history_index -= 1
+            self.current_directory = self.history[self.history_index]
+            self.file_list.setRootIndex(self.fs_model.index(self.current_directory))
+
+    def navigate_home(self):
+        self.current_directory = QDir.homePath()
+        self.file_list.setRootIndex(self.fs_model.index(self.current_directory))
+        self.update_history(self.current_directory)
+
+    def navigate_forward(self):
+        if self.history_index < len(self.history) - 1:
+            self.history_index += 1
+            self.current_directory = self.history[self.history_index]
+            self.file_list.setRootIndex(self.fs_model.index(self.current_directory))
+
+    def update_history(self, new_path):
+        # Trim forward history if navigating anew
+        if self.history_index < len(self.history) - 1:
+            self.history = self.history[:self.history_index + 1]
+        self.history.append(new_path)
+        self.history_index = len(self.history) - 1
+
+    def toggle_date_view(self):
+        if self.stack_widget.currentWidget() == self.reorganize_view:
+            self.show_date_view()
+            self.date_view_button.setText("Ver Vista Actual")
+        else:
+            self.stack_widget.setCurrentWidget(self.reorganize_view)
+            self.date_view_button.setText("Ver por Fechas")
+
+    def show_date_view(self):
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setValue(0)
+
+        self.scan_thread = ScanWorker(self.current_directory)
+        self.scan_thread.progress.connect(self.progress_bar.setValue)
+        self.scan_thread.finished.connect(self.populate_date_view)
+        self.scan_thread.start()
+
+    def populate_date_view(self, files_by_date):
+        self.date_tree.clear()
+
+        for year_month, directories in sorted(files_by_date.items()):
+            year_month_item = QTreeWidgetItem([year_month])
+            self.date_tree.addTopLevelItem(year_month_item)
+
+            for directory, files in directories.items():
+                dir_item = QTreeWidgetItem([directory])
+                year_month_item.addChild(dir_item)
+
+                for file_info in files:
+                    file_item = QTreeWidgetItem(["", file_info['name']])
+                    dir_item.addChild(file_item)
+
+        self.progress_bar.setVisible(False)
+        self.stack_widget.setCurrentWidget(self.date_view)
 
 class MainWindow(QMainWindow):
     def __init__(self):
