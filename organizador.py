@@ -14,8 +14,117 @@ import os
 import datetime
 from PIL import Image
 from PIL.ExifTags import TAGS
+import threading
+from concurrent.futures import ThreadPoolExecutor
+import queue
+from pathlib import Path
+import hashlib
 
+class ThumbnailCache:
+    def __init__(self, cache_dir=None, max_size=1000):
+        self.cache_dir = cache_dir or os.path.join(os.path.expanduser('~'), '.thumbnails')
+        self.max_size = max_size
+        self.cache = {}
+        self.cache_lock = threading.Lock()
+        os.makedirs(self.cache_dir, exist_ok=True)
+        
+    def get_cache_path(self, file_path):
+        # Crear un hash único para el archivo basado en su ruta y fecha de modificación
+        file_stat = os.stat(file_path)
+        hash_str = f"{file_path}{file_stat.st_mtime}"
+        hash_name = hashlib.md5(hash_str.encode()).hexdigest()
+        return os.path.join(self.cache_dir, f"{hash_name}.png")
 
+    def get_thumbnail(self, file_path):
+        with self.cache_lock:
+            cache_path = self.get_cache_path(file_path)
+            if cache_path in self.cache:
+                return self.cache[cache_path]
+            
+            if os.path.exists(cache_path):
+                pixmap = QPixmap(cache_path)
+                self.cache[cache_path] = pixmap
+                return pixmap
+        return None
+
+    def save_thumbnail(self, file_path, pixmap):
+        with self.cache_lock:
+            cache_path = self.get_cache_path(file_path)
+            pixmap.save(cache_path, "PNG")
+            self.cache[cache_path] = pixmap
+            
+            # Limpiar caché si excede el tamaño máximo
+            if len(self.cache) > self.max_size:
+                # Eliminar 20% de las entradas más antiguas
+                items_to_remove = int(self.max_size * 0.2)
+                for _ in range(items_to_remove):
+                    self.cache.pop(next(iter(self.cache)))
+
+class ImageLoader(QObject):
+    thumbnail_ready = Signal(str, QPixmap)
+    batch_complete = Signal()
+
+    def __init__(self, cache):
+        super().__init__()
+        self.cache = cache
+        self.queue = queue.Queue()
+        self.active = True
+        self.thread_pool = ThreadPoolExecutor(max_workers=4)
+        self.processing_thread = threading.Thread(target=self._process_queue)
+        self.processing_thread.start()
+
+    def queue_image(self, file_path):
+        self.queue.put(file_path)
+
+    def _process_queue(self):
+        while self.active:
+            try:
+                file_paths = []
+                # Recolectar hasta 10 imágenes o esperar 100ms
+                try:
+                    while len(file_paths) < 10:
+                        file_path = self.queue.get(timeout=0.1)
+                        file_paths.append(file_path)
+                except queue.Empty:
+                    pass
+
+                if file_paths:
+                    # Procesar el lote de imágenes
+                    futures = []
+                    for file_path in file_paths:
+                        futures.append(self.thread_pool.submit(self._load_thumbnail, file_path))
+                    
+                    # Esperar que todas las miniaturas del lote estén listas
+                    for future in futures:
+                        future.result()
+                    
+                    self.batch_complete.emit()
+
+            except queue.Empty:
+                continue
+
+    def _load_thumbnail(self, file_path):
+        try:
+            # Intentar obtener del caché primero
+            thumbnail = self.cache.get_thumbnail(file_path)
+            if thumbnail is None:
+                # Crear miniatura si no está en caché
+                with Image.open(file_path) as img:
+                    img.thumbnail((96, 96))
+                    pixmap = QPixmap()
+                    pixmap.loadFromData(img.tobytes())
+                    self.cache.save_thumbnail(file_path, pixmap)
+                    thumbnail = pixmap
+            
+            self.thumbnail_ready.emit(file_path, thumbnail)
+            return thumbnail
+        except Exception as e:
+            print(f"Error loading thumbnail for {file_path}: {e}")
+            return None
+
+    def stop(self):
+        self.active = False
+        self.thread_pool.shutdown()
 
 class FileMetadata:
     @staticmethod
@@ -153,6 +262,36 @@ class FileListView(QListView):
                     # Emitir una señal personalizada para notificar el cambio
                     if hasattr(self, 'directory_changed'):
                         self.directory_changed.emit(fs_model.filePath(index))
+
+class OptimizedFileListView(FileListView):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.thumbnail_cache = ThumbnailCache()
+        self.image_loader = ImageLoader(self.thumbnail_cache)
+        self.image_loader.thumbnail_ready.connect(self._update_item_icon)
+        self.pending_thumbnails = set()
+        
+    def _update_item_icon(self, file_path, pixmap):
+        if not pixmap.isNull():
+            model = self.model()
+            if isinstance(model, QFileSystemModel):
+                index = model.index(file_path)
+                if index.isValid():
+                    model.setData(index, QIcon(pixmap), Qt.DecorationRole)
+        self.pending_thumbnails.discard(file_path)
+
+    def rowsInserted(self, parent, start, end):
+        super().rowsInserted(parent, start, end)
+        model = self.model()
+        if isinstance(model, QFileSystemModel):
+            for row in range(start, end + 1):
+                index = model.index(row, 0, parent)
+                file_path = model.filePath(index)
+                if file_path.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.bmp')):
+                    if file_path not in self.pending_thumbnails:
+                        self.pending_thumbnails.add(file_path)
+                        self.image_loader.queue_image(file_path)
+
 
 class ScanWorker(QObject):
     finished = Signal(dict)
@@ -453,6 +592,91 @@ class FileOrganizerWidget(QWidget):
         if self.stack_widget.currentIndex() == 1:
             self.update_date_view(path)
 
+class OptimizedFileOrganizerWidget(FileOrganizerWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        # Reemplazar la vista normal con la versión optimizada
+        self.normal_view = OptimizedFileListView()
+        self.stack_widget.removeWidget(self.stack_widget.widget(0))
+        self.stack_widget.insertWidget(0, self.normal_view)
+        
+        # Optimizar el escaneo de directorios
+        self._setup_scanning_optimizations()
+
+    def _setup_scanning_optimizations(self):
+        self.scan_pool = ThreadPoolExecutor(max_workers=os.cpu_count())
+        self.scan_chunks = []
+        self.processed_files = set()
+
+    def update_date_view(self, path):
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setValue(0)
+        
+        # Dividir el escaneo en chunks para mejor rendimiento
+        def scan_chunk(chunk_paths):
+            files_by_date = {}
+            for file_path in chunk_paths:
+                if file_path in self.processed_files:
+                    continue
+                    
+                try:
+                    date = FileMetadata.get_file_date(file_path)
+                    year_month = f"{date.year}/{date.month:02d}"
+                    rel_path = os.path.relpath(os.path.dirname(file_path), path)
+                    
+                    if year_month not in files_by_date:
+                        files_by_date[year_month] = {}
+                    if rel_path not in files_by_date[year_month]:
+                        files_by_date[year_month][rel_path] = []
+                        
+                    files_by_date[year_month][rel_path].append({
+                        'name': os.path.basename(file_path),
+                        'path': file_path,
+                        'date': date
+                    })
+                    self.processed_files.add(file_path)
+                except Exception as e:
+                    print(f"Error processing {file_path}: {e}")
+            
+            return files_by_date
+
+        # Obtener lista de archivos y dividir en chunks
+        all_files = []
+        for root, _, files in os.walk(path):
+            for file in files:
+                all_files.append(os.path.join(root, file))
+        
+        chunk_size = 100  # Ajustar según necesidad
+        self.scan_chunks = [all_files[i:i + chunk_size] 
+                          for i in range(0, len(all_files), chunk_size)]
+        
+        # Procesar chunks en paralelo
+        futures = []
+        for chunk in self.scan_chunks:
+            future = self.scan_pool.submit(scan_chunk, chunk)
+            futures.append(future)
+        
+        # Actualizar progreso y modelo
+        completed = 0
+        files_by_date = {}
+        for future in futures:
+            chunk_result = future.result()
+            for year_month, data in chunk_result.items():
+                if year_month not in files_by_date:
+                    files_by_date[year_month] = {}
+                for rel_path, files in data.items():
+                    if rel_path not in files_by_date[year_month]:
+                        files_by_date[year_month][rel_path] = []
+                    files_by_date[year_month][rel_path].extend(files)
+            
+            completed += 1
+            progress = int((completed / len(futures)) * 100)
+            self.progress_bar.setValue(progress)
+        
+        self.populate_date_view(files_by_date)
+        self.progress_bar.setVisible(False)
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -465,5 +689,6 @@ class MainWindow(QMainWindow):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = MainWindow()
+    window.file_organizer = OptimizedFileOrganizerWidget()
     window.show()
     sys.exit(app.exec())
