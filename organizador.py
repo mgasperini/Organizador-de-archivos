@@ -278,11 +278,14 @@ class FileOrganizerWidget(QWidget):
             month_name = month_names[month - 1]
             target_folder = os.path.join(self.current_directory, str(year), f"{month:02d}-{month_name}")
 
-            if not os.path.exists(target_folder):
-                os.makedirs(target_folder)
+            # if not os.path.exists(target_folder):
+            #     os.makedirs(target_folder)
 
             for j in range(year_month_item.childCount()):
                 dir_item = year_month_item.child(j)
+                target_folder = target_folder + '\\' + dir_item.text(0)
+                if not os.path.exists(target_folder):
+                    os.makedirs(target_folder)
                 for k in range(dir_item.childCount()):
                     file_item = dir_item.child(k)
                     file_path = file_item.text(1)  # Ahora correctamente toma el directorio completo del archivo
