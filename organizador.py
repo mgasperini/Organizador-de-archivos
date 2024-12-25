@@ -1,8 +1,9 @@
 import sys
+import qdarkstyle
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QWidget, QPushButton, QLabel, 
     QComboBox, QFileDialog, QListView, QStackedWidget, QProgressBar, QHBoxLayout,
-    QTreeWidget, QTreeWidgetItem
+    QTreeWidget, QTreeWidgetItem, QMessageBox
 )
 from PyQt5.QtCore import Qt, QDir, QThread, pyqtSignal, QModelIndex, QSize
 from PyQt5.QtGui import QIcon
@@ -10,6 +11,8 @@ from PyQt5.QtWidgets import QFileSystemModel
 import os
 import datetime
 import shutil  # Para mover archivos físicamente
+
+
 
 class FileMetadata:
     @staticmethod
@@ -265,8 +268,13 @@ class FileOrganizerWidget(QWidget):
         self.stack_widget.setCurrentWidget(self.date_view)
     
     def reorganize_files(self):
+        confirmation = QMessageBox.question(
+            self, "Confirmar reorganización",
+            "Se modificarán los archivos del sistema. ¿Está seguro de continuar?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+        )
         current_items = self.date_tree.invisibleRootItem()
-        if current_items.childCount() == 0:
+        if current_items.childCount() == 0 or confirmation != QMessageBox.Yes:
             return
 
         month_names = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
@@ -278,8 +286,6 @@ class FileOrganizerWidget(QWidget):
             month_name = month_names[month - 1]
             target_folder = os.path.join(self.current_directory, str(year), f"{month:02d}-{month_name}")
 
-            # if not os.path.exists(target_folder):
-            #     os.makedirs(target_folder)
 
             for j in range(year_month_item.childCount()):
                 dir_item = year_month_item.child(j)
@@ -289,46 +295,11 @@ class FileOrganizerWidget(QWidget):
                 for k in range(dir_item.childCount()):
                     file_item = dir_item.child(k)
                     file_path = file_item.text(1)  # Ahora correctamente toma el directorio completo del archivo
-
                     try:
                         shutil.move(file_path, target_folder)
                     except Exception as e:
                         print(f"Error al mover {file_path}: {e}")
 
-    @staticmethod
-    def get_dark_theme():
-        return """
-        QWidget {
-            background-color: #121212;
-            color: #e0e0e0;
-        }
-        QPushButton {
-            background-color: #1f1f1f;
-            border: 1px solid #333;
-            border-radius: 8px;
-            padding: 6px;
-        }
-        QPushButton:hover {
-            background-color: #292929;
-        }
-        QTreeWidget::item {
-            background-color: #1f1f1f;
-            color: #e0e0e0;
-        }
-        QTreeWidget::item:selected {
-            background-color: #333;
-        }
-        QProgressBar {
-            background-color: #1f1f1f;
-            color: #e0e0e0;
-            border: 1px solid #333;
-            border-radius: 5px;
-            text-align: center;
-        }
-        QProgressBar::chunk {
-            background-color: #3e8e41;
-        }
-        """
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -341,6 +312,7 @@ class MainWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    app.setStyleSheet(qdarkstyle.load_stylesheet(qt_api='pyqt5'))
     window = MainWindow()
     window.show()
     sys.exit(app.exec_())
