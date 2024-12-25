@@ -268,16 +268,22 @@ class FileOrganizerWidget(QWidget):
         self.stack_widget.setCurrentWidget(self.date_view)
     
     def reorganize_files(self):
-        confirmation = QMessageBox.question(
-            self, "Confirmar reorganización",
-            "Se modificarán los archivos del sistema. ¿Está seguro de continuar?",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
-        )
+
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Confirmar reorganización")
+        msg_box.setText("Se modificarán los archivos del sistema. ¿Está seguro de continuar?")
+        msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        yes_button = msg_box.button(QMessageBox.Yes)
+        yes_button.setText("Sí")
+        confirmation = msg_box.exec()
+
         current_items = self.date_tree.invisibleRootItem()
         if current_items.childCount() == 0 or confirmation != QMessageBox.Yes:
             return
 
         month_names = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+        
+        removing_folder = os.path.join(self.current_directory) # Guarda la carpeta actual para eliminarla si está vacía
 
         for i in range(current_items.childCount()):
             year_month_item = current_items.child(i)
@@ -286,6 +292,7 @@ class FileOrganizerWidget(QWidget):
             month_name = month_names[month - 1]
             target_folder = os.path.join(self.current_directory, str(year), f"{month:02d}-{month_name}")
 
+            
 
             for j in range(year_month_item.childCount()):
                 dir_item = year_month_item.child(j)
@@ -296,9 +303,16 @@ class FileOrganizerWidget(QWidget):
                     file_item = dir_item.child(k)
                     file_path = file_item.text(1)  # Ahora correctamente toma el directorio completo del archivo
                     try:
+                        # print(removing_folder+'\\'+dir_item.text(0))
                         shutil.move(file_path, target_folder)
                     except Exception as e:
                         print(f"Error al mover {file_path}: {e}")
+            # Eliminar carpeta si está vacía    
+            if not os.listdir(removing_folder + '\\' + dir_item.text(0)):  # Verifica si la carpeta está vacía
+                try:
+                    os.rmdir(removing_folder + '\\' + dir_item.text(0))  # Elimina la carpeta
+                except Exception as e:
+                    print(f"Error al eliminar la carpeta {removing_folder} \\ {dir_item.text(0)}: {e}")
 
 
 class MainWindow(QMainWindow):
