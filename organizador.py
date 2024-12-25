@@ -9,6 +9,7 @@ from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QFileSystemModel
 import os
 import datetime
+import shutil  # Para mover archivos físicamente
 
 class FileMetadata:
     @staticmethod
@@ -85,6 +86,8 @@ class FileOrganizerWidget(QWidget):
         self.initialize_models()
 
     def setup_ui(self):
+       # self.setStyleSheet(self.get_dark_theme())
+        
         self.main_layout = QHBoxLayout(self)
 
         # Barra lateral
@@ -92,6 +95,7 @@ class FileOrganizerWidget(QWidget):
         self.sidebar_layout.setAlignment(Qt.AlignTop)
 
         self.reorganize_button = QPushButton("Reorganizar Archivos")
+        self.reorganize_button.clicked.connect(self.reorganize_files)
         self.sidebar_layout.addWidget(self.reorganize_button)
 
         # Placeholder para futuros botones
@@ -254,11 +258,74 @@ class FileOrganizerWidget(QWidget):
                 year_month_item.addChild(dir_item)
 
                 for file_info in files:
-                    file_item = QTreeWidgetItem(["", file_info['name']])
+                    file_item = QTreeWidgetItem(["", file_info['path']])
                     dir_item.addChild(file_item)
 
         self.progress_bar.setVisible(False)
         self.stack_widget.setCurrentWidget(self.date_view)
+    
+    def reorganize_files(self):
+        current_items = self.date_tree.invisibleRootItem()
+        if current_items.childCount() == 0:
+            return
+
+        month_names = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+
+        for i in range(current_items.childCount()):
+            year_month_item = current_items.child(i)
+            year_month = year_month_item.text(0)
+            year, month = map(int, year_month.split('/'))
+            month_name = month_names[month - 1]
+            target_folder = os.path.join(self.current_directory, str(year), f"{month:02d}-{month_name}")
+
+            if not os.path.exists(target_folder):
+                os.makedirs(target_folder)
+
+            for j in range(year_month_item.childCount()):
+                dir_item = year_month_item.child(j)
+                for k in range(dir_item.childCount()):
+                    file_item = dir_item.child(k)
+                    file_path = file_item.text(1)  # Ahora correctamente toma el directorio completo del archivo
+
+                    try:
+                        shutil.move(file_path, target_folder)
+                    except Exception as e:
+                        print(f"Error al mover {file_path}: {e}")
+
+    @staticmethod
+    def get_dark_theme():
+        return """
+        QWidget {
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+        QPushButton {
+            background-color: #1f1f1f;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 6px;
+        }
+        QPushButton:hover {
+            background-color: #292929;
+        }
+        QTreeWidget::item {
+            background-color: #1f1f1f;
+            color: #e0e0e0;
+        }
+        QTreeWidget::item:selected {
+            background-color: #333;
+        }
+        QProgressBar {
+            background-color: #1f1f1f;
+            color: #e0e0e0;
+            border: 1px solid #333;
+            border-radius: 5px;
+            text-align: center;
+        }
+        QProgressBar::chunk {
+            background-color: #3e8e41;
+        }
+        """
 
 class MainWindow(QMainWindow):
     def __init__(self):
