@@ -10,6 +10,7 @@ from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QFileSystemModel
 import os
 import datetime
+import re
 import shutil  # Para mover archivos físicamente
 
 
@@ -145,6 +146,11 @@ class FileOrganizerWidget(QWidget):
         self.date_view_button = QPushButton("Ver por Fechas")
         self.date_view_button.clicked.connect(self.toggle_date_view)
         self.top_bar_layout.addWidget(self.date_view_button)
+
+        # Hacer que se active solo con la vista de fechas 
+        self.to_original_button = QPushButton("Vista Actual a Original")
+        self.to_original_button.clicked.connect(self.reorganize_to_original)
+        self.top_bar_layout.addWidget(self.to_original_button)
 
         self.top_bar_layout.addStretch()
         self.content_layout.addLayout(self.top_bar_layout)
@@ -313,6 +319,82 @@ class FileOrganizerWidget(QWidget):
                     os.rmdir(removing_folder + '\\' + dir_item.text(0))  # Elimina la carpeta
                 except Exception as e:
                     print(f"Error al eliminar la carpeta {removing_folder} \\ {dir_item.text(0)}: {e}")
+
+    def reorganize_to_original(self):
+        """
+        Reorganiza los archivos desde la estructura de fechas de vuelta a sus carpetas originales,
+        agrupándolos por nombre de subcarpeta. Los archivos sin subcarpeta se mueven a la ruta inicial.
+        """
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Confirmar deshacer reorganización")
+        msg_box.setText("Se reorganizarán los archivos al directorio original. ¿Está seguro de continuar?")
+        msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        yes_button = msg_box.button(QMessageBox.Yes)
+        yes_button.setText("Sí")
+        confirmation = msg_box.exec()
+
+        if confirmation != QMessageBox.Yes:
+            return
+        
+        date_pattern = r'(?:(\d{4}\\\d{2}-(Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|Agosto|Septiembre|Octubre|Noviembre|Diciembre))|(\d{2}\\\d{2}\\)|(\d{2}\\(Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|Agosto|Septiembre|Octubre|Noviembre|Diciembre))|(\d{4}\\(Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|Agosto|Septiembre|Octubre|Noviembre|Diciembre)))(\\.+)$'
+
+        # Estructura base
+        root_path = self.current_directory  # Ruta inicial
+        if not os.path.exists(root_path):
+            QMessageBox.warning(self, "Advertencia", "La ruta inicial no existe.")
+            return
+
+        # Crear un diccionario para mapear archivos a las carpetas originales
+        folder_map = {}
+        files_without_subfolder = []  # Archivos que no tienen subcarpeta
+
+        for root, dirs, files in os.walk(root_path):
+            for file in files:
+                # Verificar si el archivo está en una subcarpeta
+                relative_path = os.path.relpath(root, root_path)
+
+                match = re.search(date_pattern, relative_path)
+                print(relative_path)
+                
+                if match:
+                    if os.sep in relative_path:  # Tiene una subcarpeta
+                        subfolder_name = os.path.basename(root)
+                        if subfolder_name not in folder_map:
+                            folder_map[subfolder_name] = []
+                        folder_map[subfolder_name].append(os.path.join(root, file))
+                else:
+                    # El archivo está en una carpeta de nivel intermedio
+                    files_without_subfolder.append(os.path.join(root, file))
+        
+
+        # Mover archivos sin subcarpeta directamente a la ruta inicial
+        for file_path in files_without_subfolder:
+            try:
+                shutil.move(file_path, root_path)
+            except Exception as e:
+                print(f"Error al mover {file_path} a {root_path}: {e}")
+
+        # Crear las carpetas originales y mover los archivos
+        for subfolder_name, file_list in folder_map.items():
+            target_folder = os.path.join(root_path, subfolder_name)
+            if not os.path.exists(target_folder):
+                os.makedirs(target_folder)
+
+            for file_path in file_list:
+                try:
+                    shutil.move(file_path, target_folder)
+                except Exception as e:
+                    print(f"Error al mover {file_path} a {target_folder}: {e}")
+
+        # Eliminar las carpetas vacías
+        for root, dirs, files in os.walk(root_path, topdown=False):
+            if not os.listdir(root):
+                try:
+                    os.rmdir(root)
+                except Exception as e:
+                    print(f"Error al eliminar carpeta vacía {root}: {e}")
+        QMessageBox.information(self, "Proceso Completo", "Los archivos han sido reorganizados a sus carpetas originales.")
+    
 
 
 class MainWindow(QMainWindow):
