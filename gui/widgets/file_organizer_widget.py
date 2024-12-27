@@ -130,12 +130,24 @@ class FileOrganizerWidget(QWidget):
         self.stack_widget.setCurrentWidget(self.date_view)
 
     def reorganize_files(self):
+        if FileOrganizer.contains_date(self.current_directory):
+            msg_box_warning = QMessageBox(self)
+            msg_box_warning.setWindowTitle("Advertencia")
+            msg_box_warning.setText("La carpeta ya tiene una estructura de fecha. ¿Desea continuar con la reorganización?")
+            msg_box_warning.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            msg_box_warning.button(QMessageBox.Yes).setText("Sí")
+
+             # Si el usuario selecciona No, cancelar la operación
+            if msg_box_warning.exec() == QMessageBox.No:
+                return  
+            
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Confirmar reorganización")
         msg_box.setText("Se modificarán los archivos del sistema. ¿Está seguro de continuar?")
         msg_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
         msg_box.button(QMessageBox.Yes).setText("Sí")
-        
+
+            
         if msg_box.exec() == QMessageBox.Yes:
             FileOrganizer.reorganize_by_date(
                 self.date_view.get_files_by_date(),
@@ -155,3 +167,5 @@ class FileOrganizerWidget(QWidget):
             QMessageBox.information(self, "Proceso Completo", 
                                   "Los archivos han sido reorganizados a sus carpetas originales.")
             self.show_date_view()  # Actualizar la vista
+
+    

@@ -26,7 +26,7 @@ class DateView(QWidget):
                 year_month_item.addChild(dir_item)
 
                 for file_info in files:
-                    file_item = QTreeWidgetItem(["", file_info['path']])
+                    file_item = QTreeWidgetItem(["", file_info['name']])
                     dir_item.addChild(file_item)
 
     def get_files_by_date(self):

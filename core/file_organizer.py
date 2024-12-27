@@ -10,10 +10,35 @@ class FileOrganizer:
     ]
 
     @staticmethod
+    def contains_date(path: str):
+        """
+        Verifica si el path contiene una estructura de fecha.
+        """
+
+        date_pattern_check = r'(?:(\d{4}\\\d{2}-(Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|Agosto|' \
+                      r'Septiembre|Octubre|Noviembre|Diciembre))|(\d{2}\\\d{2}\\)|' \
+                      r'(\d{2}\\(Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|Agosto|' \
+                      r'Septiembre|Octubre|Noviembre|Diciembre))|(\d{4}\\(Enero|Febrero|' \
+                      r'Marzo|Abril|Mayo|Junio|Julio|Agosto|Septiembre|Octubre|Noviembre|' \
+                      r'Diciembre)))|(19\d{2}|20\d{2})'
+        
+        for  dirs in os.walk(path):
+            #print(dirs[0])
+            if re.search(date_pattern_check, dirs[0])!=None:
+                try:
+                    print(dirs[0])
+                    return True
+                except Exception as e:
+                    print('error')
+                    pass
+        return False
+
+    @staticmethod
     def reorganize_by_date(files_by_date: Dict, base_path: str):
         """
         Reorganiza los archivos según su fecha en una estructura de carpetas año/mes.
         """
+
         for year_month, directories in files_by_date.items():
             year, month = map(int, year_month.split('/'))
             month_name = FileOrganizer.MONTH_NAMES[month - 1]
@@ -51,6 +76,7 @@ class FileOrganizer:
                       r'Septiembre|Octubre|Noviembre|Diciembre))|(\d{4}\\(Enero|Febrero|' \
                       r'Marzo|Abril|Mayo|Junio|Julio|Agosto|Septiembre|Octubre|Noviembre|' \
                       r'Diciembre)))(\\.+)$'
+        
 
         folder_map = {}
         files_without_subfolder = []
