@@ -15,7 +15,8 @@ class NavigationBar(QWidget):
         self.up_button = QPushButton(QIcon("Assets/arriba.svg"), "")
         self.select_folder_button = QPushButton("Seleccionar Carpeta")
         self.date_view_button = QPushButton("Ver por Fechas")
-        self.to_original_button = QPushButton("Vista Actual a Original")
+        self.to_original_button = QPushButton("Ordenar por nombre de carpetas")
+        self.order_by_date_button = QPushButton("Ordenar por fecha")
         
         layout.addWidget(self.home_button)
         layout.addWidget(self.back_button)
@@ -24,4 +25,5 @@ class NavigationBar(QWidget):
         layout.addWidget(self.select_folder_button)
         layout.addWidget(self.date_view_button)
         layout.addWidget(self.to_original_button)
+        layout.addWidget(self.order_by_date_button)
         layout.addStretch()

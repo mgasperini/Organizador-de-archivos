@@ -59,9 +59,10 @@ class FileOrganizerWidget(QWidget):
         self.navigation_bar.select_folder_button.clicked.connect(self.select_folder)
         self.navigation_bar.date_view_button.clicked.connect(self.toggle_date_view)
         self.navigation_bar.to_original_button.clicked.connect(self.reorganize_to_original)
+        self.navigation_bar.order_by_date_button.clicked.connect(self.reorganize_files)
 
         # Sidebar connections
-        self.sidebar.reorganize_button.clicked.connect(self.reorganize_files)
+        self.sidebar.reorganize_button.clicked.connect(self.navigate_home)
         
         # File view connections
         self.file_view.file_list.doubleClicked.connect(self.navigate_directory)
@@ -110,7 +111,7 @@ class FileOrganizerWidget(QWidget):
     def toggle_date_view(self):
         if self.stack_widget.currentWidget() == self.file_view:
             self.show_date_view()
-            self.navigation_bar.date_view_button.setText("Ver Vista Actual")
+            self.navigation_bar.date_view_button.setText("Ver carpetas")
         else:
             self.stack_widget.setCurrentWidget(self.file_view)
             self.navigation_bar.date_view_button.setText("Ver por Fechas")
@@ -118,6 +119,11 @@ class FileOrganizerWidget(QWidget):
     def show_date_view(self):
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
+
+        # Limpiar thread anterior si existe
+        if hasattr(self, 'scan_thread') and self.scan_thread is not None:
+            if self.scan_thread.isRunning():
+                self.scan_thread.wait()  # Esperar a que termine
         
         self.scan_thread = FileScanWorker(self.current_directory)
         self.scan_thread.progress.connect(self.progress_bar.setValue)
@@ -130,6 +136,9 @@ class FileOrganizerWidget(QWidget):
         self.stack_widget.setCurrentWidget(self.date_view)
 
     def reorganize_files(self):
+        if self.stack_widget.currentWidget() == self.file_view:
+                self.toggle_date_view()
+
         if FileOrganizer.contains_date(self.current_directory):
             msg_box_warning = QMessageBox(self)
             msg_box_warning.setWindowTitle("Advertencia")
@@ -149,6 +158,10 @@ class FileOrganizerWidget(QWidget):
 
             
         if msg_box.exec() == QMessageBox.Yes:
+            # Limpiar thread anterior si existe
+            if hasattr(self, 'scan_thread') and self.scan_thread is not None:
+                if self.scan_thread.isRunning():
+                    self.scan_thread.wait()  # Esperar a que termine
             FileOrganizer.reorganize_by_date(
                 self.date_view.get_files_by_date(),
                 self.current_directory
@@ -166,6 +179,6 @@ class FileOrganizerWidget(QWidget):
             FileOrganizer.restore_original_structure(self.current_directory)
             QMessageBox.information(self, "Proceso Completo", 
                                   "Los archivos han sido reorganizados a sus carpetas originales.")
-            self.show_date_view()  # Actualizar la vista
+            self.stack_widget.setCurrentWidget(self.file_view)  # Actualizar la vista
 
     

@@ -3,6 +3,7 @@ import shutil
 import re
 from typing import Dict, List
 
+
 class FileOrganizer:
     MONTH_NAMES = [
         "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -135,6 +136,7 @@ class FileOrganizer:
 
         # Limpiar carpetas vacías
         FileOrganizer._clean_empty_directories(base_path)
+        
 
     @staticmethod
     def _clean_empty_directories(path: str):
