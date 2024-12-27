@@ -8,6 +8,7 @@ class FileView(QWidget):
         super().__init__(parent)
         self.setup_ui()
         self.initialize_model()
+
         
     def setup_ui(self):
         layout = QVBoxLayout(self)

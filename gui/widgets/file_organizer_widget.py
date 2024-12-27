@@ -3,7 +3,7 @@ from PyQt5.QtWidgets import (
     QProgressBar, QMessageBox
 )
 from PyQt5.QtCore import Qt, QDir
-from .navigation_bar import NavigationBar
+from .navigation_bar import NavigationBar, ViewMode
 from .file_view import FileView
 from .date_view import DateView
 from .duplicates_view import DuplicatesView
@@ -18,6 +18,7 @@ class FileOrganizerWidget(QWidget):
         self.current_directory = QDir.homePath()
         self.history = []
         self.history_index = -1
+        self.actual_view = None
         self.setup_ui()
         self.setup_connections()
 
@@ -40,6 +41,8 @@ class FileOrganizerWidget(QWidget):
         self.file_view = FileView(self)
         self.date_view = DateView(self)
         self.duplicates_view = DuplicatesView(self)
+
+        self.actual_view = self.file_view
         
         self.stack_widget.addWidget(self.file_view)
         self.stack_widget.addWidget(self.date_view)
@@ -62,11 +65,13 @@ class FileOrganizerWidget(QWidget):
         self.navigation_bar.up_button.clicked.connect(self.go_up_directory)
         self.navigation_bar.select_folder_button.clicked.connect(self.select_folder)
         self.navigation_bar.date_view_button.clicked.connect(self.toggle_date_view)
+        self.navigation_bar.file_view_button.clicked.connect(self.toggle_date_view)
         self.navigation_bar.to_original_button.clicked.connect(self.reorganize_to_original)
         self.navigation_bar.order_by_date_button.clicked.connect(self.reorganize_files)
+        self.navigation_bar.duplicates_button.clicked.connect(self.show_duplicate_view)
 
         # Sidebar connections
-        self.sidebar.reorganize_button.clicked.connect(self.navigate_home)
+        self.sidebar.reorganize_button.clicked.connect(self.toggle_date_view)
         self.sidebar.duplicates_button.clicked.connect(self.show_duplicate_view)
         
         # File view connections
@@ -91,8 +96,11 @@ class FileOrganizerWidget(QWidget):
             self.update_history(new_path)
 
     def navigate_home(self):
+        self.actual_view = self.file_view
+        self.navigation_bar.update_view(view_mode=ViewMode.NORMAL)
         self.current_directory = QDir.homePath()
         self.file_view.set_current_directory(self.current_directory)
+        self.stack_widget.setCurrentWidget(self.file_view)
         self.update_history(self.current_directory)
 
     def navigate_back(self):
@@ -116,15 +124,16 @@ class FileOrganizerWidget(QWidget):
     def toggle_date_view(self):
         if self.stack_widget.currentWidget() == self.file_view:
             self.show_date_view()
-            self.navigation_bar.date_view_button.setText("Ver carpetas")
         else:
             self.stack_widget.setCurrentWidget(self.file_view)
-            self.navigation_bar.date_view_button.setText("Ver por Fechas")
+            self.actual_view = self.file_view
+            self.navigation_bar.update_view(view_mode=ViewMode.NORMAL)
 
     def show_date_view(self):
+        self.actual_view = self.date_view
+        self.navigation_bar.update_view(view_mode=ViewMode.DATE)
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
-
         # Limpiar thread anterior si existe
         if hasattr(self, 'scan_thread') and self.scan_thread is not None:
             if self.scan_thread.isRunning():
@@ -143,6 +152,7 @@ class FileOrganizerWidget(QWidget):
     def reorganize_files(self):
         if self.stack_widget.currentWidget() == self.file_view:
                 self.toggle_date_view()
+ 
 
         if FileOrganizer.contains_date(self.current_directory):
             msg_box_warning = QMessageBox(self)
@@ -188,6 +198,10 @@ class FileOrganizerWidget(QWidget):
 
 
     def show_duplicate_view(self):
+        self.actual_view = self.duplicates_view
+        self.current_directory = self.history[-1]
+        self.navigation_bar.update_view(view_mode=ViewMode.DUPLICATES)
+        print(self.current_directory)
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
 
