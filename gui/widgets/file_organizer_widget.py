@@ -6,9 +6,11 @@ from PyQt5.QtCore import Qt, QDir
 from .navigation_bar import NavigationBar
 from .file_view import FileView
 from .date_view import DateView
+from .duplicates_view import DuplicatesView
 from .sidebar import Sidebar
 from core.file_scanner import FileScanWorker
 from core.file_organizer import FileOrganizer
+from core.file_hash_scanner import FileHashScanWorker
 
 class FileOrganizerWidget(QWidget):
     def __init__(self, parent=None):
@@ -37,9 +39,11 @@ class FileOrganizerWidget(QWidget):
         self.stack_widget = QStackedWidget()
         self.file_view = FileView(self)
         self.date_view = DateView(self)
+        self.duplicates_view = DuplicatesView(self)
         
         self.stack_widget.addWidget(self.file_view)
         self.stack_widget.addWidget(self.date_view)
+        self.stack_widget.addWidget(self.duplicates_view)
         
         self.content_layout.addWidget(self.stack_widget)
         
@@ -63,6 +67,7 @@ class FileOrganizerWidget(QWidget):
 
         # Sidebar connections
         self.sidebar.reorganize_button.clicked.connect(self.navigate_home)
+        self.sidebar.duplicates_button.clicked.connect(self.show_duplicate_view)
         
         # File view connections
         self.file_view.file_list.doubleClicked.connect(self.navigate_directory)
@@ -181,4 +186,22 @@ class FileOrganizerWidget(QWidget):
                                   "Los archivos han sido reorganizados a sus carpetas originales.")
             self.stack_widget.setCurrentWidget(self.file_view)  # Actualizar la vista
 
-    
+
+    def show_duplicate_view(self):
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setValue(0)
+
+        # Limpiar thread anterior si existe
+        if hasattr(self, 'hash_scan_thread') and self.hash_scan_thread is not None:
+            if self.hash_scan_thread.isRunning():
+                self.hash_scan_thread.wait()  # Esperar a que termine
+        
+        self.hash_scan_thread = FileHashScanWorker(self.current_directory)
+        self.hash_scan_thread.progress.connect(self.progress_bar.setValue)
+        self.hash_scan_thread.finished.connect(self.populate_duplicate_view)
+        self.hash_scan_thread.start()
+
+    def populate_duplicate_view(self, duplicate_files):
+        self.duplicates_view.populate_table(duplicate_files)
+        self.progress_bar.setVisible(False)
+        self.stack_widget.setCurrentWidget(self.duplicates_view)

@@ -12,7 +12,7 @@ class Sidebar(QWidget):
         
         self.reorganize_button = QPushButton("Reorganizar Archivos")
         self.duplicates_button = QPushButton("Eliminar Duplicados")
-        self.duplicates_button.setEnabled(False)
+        
         
         layout.addWidget(self.reorganize_button)
         layout.addWidget(self.duplicates_button)
