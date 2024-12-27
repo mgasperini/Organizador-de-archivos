@@ -201,7 +201,6 @@ class FileOrganizerWidget(QWidget):
         self.actual_view = self.duplicates_view
         self.current_directory = self.history[-1]
         self.navigation_bar.update_view(view_mode=ViewMode.DUPLICATES)
-        print(self.current_directory)
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
 

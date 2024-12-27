@@ -21,16 +21,14 @@ class NavigationBar(QWidget):
         self.setup_ui()
 
         # Habilitar actualizaciones después de la inicialización
-        QTimer.singleShot(0, lambda: self.setUpdatesEnabled(True))
+        # QTimer.singleShot(0, lambda: self.setUpdatesEnabled(True))
         
     def setup_ui(self):
         self.main_layout = QHBoxLayout(self)
         self.create_buttons()
-        # Configurar todos los botones inicialmente ocultos
-        self.hide_all_buttons()
         
         # Actualizar a la vista inicial
-        QTimer.singleShot(0, lambda: self.update_view(ViewMode.NORMAL))
+        self.update_view(self.current_view)
 
     def hide_all_buttons(self):
         """Hide all buttons without removing them from layout"""
@@ -50,6 +48,12 @@ class NavigationBar(QWidget):
             'up_button': QPushButton(QIcon("Assets/arriba.svg"), ""),
             'select_folder_button': QPushButton("Seleccionar Carpeta")
         }
+
+        # Añadir botones comunes al layout inmediatamente
+        for button in self.common_buttons.values():
+            button.hide()  # Ocultar inicialmente
+            self.main_layout.addWidget(button)
+
         # Create button attributes for direct access
         self.home_button = self.common_buttons['home_button']
         self.back_button = self.common_buttons['back_button']
@@ -71,6 +75,11 @@ class NavigationBar(QWidget):
                 'duplicates_button': QPushButton("Buscar Duplicados")
             }
         }
+        # Añadir todos los botones específicos al layout inmediatamente
+        for mode_buttons in self.view_buttons.values():
+            for button in mode_buttons.values():
+                button.hide()  # Ocultar inicialmente
+                self.main_layout.addWidget(button)
 
         # Create view-specific button attributes
         self.date_view_button = self.view_buttons[ViewMode.NORMAL]['date_view_button']
@@ -90,24 +99,27 @@ class NavigationBar(QWidget):
 
     def update_view(self, view_mode: ViewMode):
         """Update the navigation bar for the specified view mode"""
-        print(view_mode, self.current_view)
+        self.setUpdatesEnabled(False)  # Deshabilitar actualizaciones durante el cambio de pantalla
         self.current_view = view_mode
-        print(view_mode, self.current_view)
-        self.clear_layout()
         
-        # Add common buttons
+
+        # Ocultar todos los botones primero
+        self.hide_all_buttons()
+
+        # Mostrar botones comunes
         for button in self.common_buttons.values():
             button.show()
-            self.main_layout.addWidget(button)
-            
-        # Add view-specific buttons
+
+        # Mostrar botones específicos de la vista
         if view_mode in self.view_buttons:
             for button in self.view_buttons[view_mode].values():
                 button.show()
-                self.main_layout.addWidget(button)
-                
+        
         # Add stretch at the end
         self.main_layout.addStretch()
+
+        self.setUpdatesEnabled(True) # Vuelve a activar las actualizaciones
+
 
     def get_button(self, button_name: str):
         """Get a button by its name"""
