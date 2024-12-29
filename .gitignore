@@ -1,3 +1,7 @@
 revisar*
 pruebas.py
 *.pyc
+*.spec
+/dist/
+/build/
+mejoras.txt

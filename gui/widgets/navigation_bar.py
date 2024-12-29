@@ -70,10 +70,10 @@ class NavigationBar(QWidget):
         """Create all possible buttons"""
         # Common buttons (always visible)
         self.common_buttons = {
-            'home_button': QPushButton(QIcon("Assets/home.svg"), ""),
-            'back_button': QPushButton(QIcon("Assets/flecha-pequena-izquierda.svg"), ""),
-            'forward_button': QPushButton(QIcon("Assets/Adelante.svg"), ""),
-            'up_button': QPushButton(QIcon("Assets/arriba.svg"), ""),
+            'home_button': QPushButton(QIcon("Assets/home.svg"), "Home"),
+            'back_button': QPushButton(QIcon("Assets/flecha-pequena-izquierda.svg"), "Atrás"),
+            'forward_button': QPushButton(QIcon("Assets/Adelante.svg"), "Adelante"),
+            'up_button': QPushButton(QIcon("Assets/arriba.svg"), "Subir"),
             # 'select_folder_button': QPushButton("Seleccionar Carpeta")
         }
 
