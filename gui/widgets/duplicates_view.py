@@ -164,5 +164,9 @@ class DuplicatesView(QWidget):
 
             return new_duplicate_files
     
+    def update_root_index(self):
+        """Actualiza la vista cuando se cambia el directorio."""
+        self.populate_tree(self.get_duplicate_files)
+    
     def get_duplicate_files(self):
         return self.duplicate_files

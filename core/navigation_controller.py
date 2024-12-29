@@ -12,7 +12,7 @@ class NavigationController(QObject):
         self.file_organizer = file_organizer_widget
         self.current_path = self.file_organizer.current_directory
         self.history = [self.current_path]
-        self.history_index = -1
+        self.history_index = 0
         self.actual_view = self.file_organizer.file_view
         self.hash_scan_thread = None
         self.progress_bar = None
@@ -22,7 +22,7 @@ class NavigationController(QObject):
         # Conectar la señal de escaneo completado
         if self.actual_view.name == "FileView":
             self.file_organizer.file_view.scan_completed.connect(self._handle_scan_completed)
-        
+
         # Conectar señales de la barra de navegación
         self.navigation_bar.path_changed.connect(self.handle_path_change)
         self.navigation_bar.directory_selected.connect(self.handle_directory_selected)
@@ -61,11 +61,13 @@ class NavigationController(QObject):
         
         if current_widget == self.file_organizer.file_view:
             # Cambiar a vista de fecha
+            self.actual_view = self.file_organizer.date_view
             self.navigation_bar.update_view(ViewMode.DATE)
             self.file_organizer.file_view.start_date_scan(self.history[self.history_index])
 
         else:
             # Cambiar a vista de archivos
+            self.actual_view = self.file_organizer.file_view
             self.file_organizer.change_view(self.file_organizer.file_view)
             self.navigation_bar.update_view(ViewMode.NORMAL)
 
@@ -75,15 +77,18 @@ class NavigationController(QObject):
         
         if current_widget != self.file_organizer.file_view:
             # Cambiar a vista de archivos
+            self.actual_view = self.file_organizer.file_view
             self.file_organizer.change_view(self.file_organizer.file_view)
             self.navigation_bar.update_view(ViewMode.NORMAL)
-
+            self.actual_view.update_root_index(self.history[self.history_index])
+            
     def toggle_duplicate_view(self):
         """Cambia a la vista de archivos duplicados"""
         current_widget = self.file_organizer.stack_widget.currentWidget()
         
         if current_widget != self.file_organizer.duplicates_view:
             # Cambiar a vista de archivos
+            self.actual_view = self.file_organizer.duplicates_view
             self.file_organizer.change_view(self.file_organizer.duplicates_view)
             self.navigation_bar.update_view(ViewMode.DUPLICATES)
             self.show_duplicate_view(self.file_organizer.progress_bar, self.file_organizer.duplicates_view, self.file_organizer.stack_widget)
@@ -101,7 +106,7 @@ class NavigationController(QObject):
         self.duplicates_view = duplicates_view
         self.stack_widget = stack_widget
         
-        current_directory = self.history[-1]
+        current_directory = self.history[self.history_index]
         
         # Configurar UI
         self.progress_bar.setVisible(True)
@@ -137,8 +142,7 @@ class NavigationController(QObject):
         if hasattr(self, 'scan_thread') and self.scan_thread is not None:
             if self.scan_thread.isRunning():
                 self.scan_thread.wait()  # Esperar a que termine
-        
-        self.scan_thread = FileScanWorker(self.file_organizer.current_directory)
+        self.scan_thread = FileScanWorker(self.history[self.history_index])
         self.scan_thread.progress.connect(self.file_organizer.progress_bar.setValue)
         self.scan_thread.finished.connect(self.populate_date_view)
         self.scan_thread.start()
@@ -176,6 +180,46 @@ class NavigationController(QObject):
         return None
     
 
+    @pyqtSlot(str)
+    def handle_path_change(self, new_path):
+        """Manejar cambios en la ruta introducida manualmente"""
+        if os.path.exists(new_path):
+            self.navigate_to(new_path)
+    
+    @pyqtSlot(str)
+    def handle_directory_selected(self, directory):
+        """Manejar la selección de directorio desde el diálogo"""
+        self.navigate_to(directory)
+
+    @pyqtSlot(str)
+    def handle_directory_changed(self, new_path):
+        """Manejar cambios de directorio desde el FileView"""
+        self.navigate_to(new_path)
+    
+    
+    def navigate_to(self, path, update_history=True):
+        """Navegar a una nueva ruta y actualizar el historial"""
+        
+        if os.path.exists(path):
+            self.current_path = path
+            # print("Antes",self.history, self.history_index)
+            if update_history:
+                self.update_history(path)
+            # print("Despues",self.history, self.history_index)
+            self.navigation_bar.update_path_display(path)
+            #print("Directorio",self.history[self.history_index], self.current_path == self.history[self.history_index],self.actual_view.name)
+            # Actualizar la vista
+            if self.actual_view.name == "FileView":
+                self.actual_view.update_root_index(path)   
+            elif self.actual_view.name == "DateView":
+                
+                self.file_organizer.file_view.start_date_scan(self.current_path)
+                self.show_date_view()
+            elif self.actual_view.name == "DuplicatesView":
+                self.show_duplicate_view(self.progress_bar, self.duplicates_view, self.stack_widget)
+            else:
+                print("Vista no reconocida")
+
     def navigate_directory(self, index):
         """Navegar a un directorio basado en un índice del modelo"""
         new_path = self.actual_view.fs_model.filePath(index)
@@ -194,54 +238,30 @@ class NavigationController(QObject):
             return parent_dir
         return None
     
-
-    @pyqtSlot(str)
-    def handle_path_change(self, new_path):
-        """Manejar cambios en la ruta introducida manualmente"""
-        if os.path.exists(new_path):
-            self.navigate_to(new_path)
-    
-    @pyqtSlot(str)
-    def handle_directory_selected(self, directory):
-        """Manejar la selección de directorio desde el diálogo"""
-        self.navigate_to(directory)
-
-    @pyqtSlot(str)
-    def handle_directory_changed(self, new_path):
-        """Manejar cambios de directorio desde el FileView"""
-        self.navigate_to(new_path)
-    
-    def navigate_to(self, path):
-        """Navegar a una nueva ruta y actualizar el historial"""
-        print(path,self.current_path)
-        if os.path.exists(path):
-            self.current_path = path
-            self.update_history(path)
-            self.navigation_bar.update_path_display(path)
-            # Actualizar el FileView
-            
-            self.actual_view.update_root_index(path)
-            print(path,self.history)
-    
     def navigate_home(self):
         """Navegar al directorio home del usuario"""
-        self.navigate_to(os.path.expanduser("~"))
+        self.navigate_to(os.path.expanduser("~").replace("\\", "/"))
     
     def navigate_back(self):
         """Navegar hacia atrás en el historial"""
         if self.history_index > 0:
             self.history_index -= 1
-            self.navigate_to(self.history[self.history_index])
+            self.navigate_to(self.history[self.history_index], False)
     
     def navigate_forward(self):
         """Navegar hacia adelante en el historial"""
         if self.history_index < len(self.history) - 1:
             self.history_index += 1
-            self.navigate_to(self.history[self.history_index])
+            self.navigate_to(self.history[self.history_index], False)
     
     def update_history(self, path):
         """Actualizar el historial de navegación"""
+        # Si no estamos al final del historial, truncar la parte futura
         if self.history_index < len(self.history) - 1:
             self.history = self.history[:self.history_index + 1]
-        self.history.append(path)
-        self.history_index = len(self.history) - 1
+
+        # Evitar duplicados consecutivos en el historial
+        if not self.history or self.history[-1] != path:
+            self.history.append(path)
+            self.history_index = len(self.history) - 1
+        
