@@ -1,6 +1,6 @@
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QPushButton
+from PyQt5.QtWidgets import QWidget, QHBoxLayout, QPushButton, QVBoxLayout, QLineEdit, QFileDialog
 from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import pyqtSignal, QDir
 from enum import Enum
 
 class ViewMode(Enum):
@@ -8,22 +8,50 @@ class ViewMode(Enum):
     DATE = "date"
     DUPLICATES = "duplicates"
 
-
 class NavigationBar(QWidget):
+    # Señales para comunicar eventos a la lógica
+    path_changed = pyqtSignal(str)
+    directory_selected = pyqtSignal(str)
+
     def __init__(self, parent=None):
         super().__init__(parent)
-         # Evitar parpadeos durante la inicialización
-        self.setAttribute(Qt.WA_NoSystemBackground)
-        self.setAttribute(Qt.WA_TranslucentBackground)
         self.setUpdatesEnabled(False)  # Deshabilitar actualizaciones durante la inicialización
-        
         self.current_view = ViewMode.NORMAL
         self.setup_ui()
 
-        # Habilitar actualizaciones después de la inicialización
-        # QTimer.singleShot(0, lambda: self.setUpdatesEnabled(True))
         
     def setup_ui(self):
+
+        # Layout principal vertical
+        self.vertical_layout = QVBoxLayout(self)
+        self.vertical_layout.setSpacing(5)
+        self.vertical_layout.setContentsMargins(5, 5, 5, 5)
+
+        # Layout superior para la barra de dirección
+        self.path_layout = QHBoxLayout()
+
+        # Widget de entrada de dirección
+        self.path_entry = QLineEdit()
+        self.path_entry.setPlaceholderText(QDir.homePath())
+        self.path_entry.returnPressed.connect(self._on_path_entered)
+
+        # Botón de browse
+        self.browse_button = QPushButton("...")
+        self.browse_button.setFixedWidth(30)
+        self.browse_button.clicked.connect(self._on_browse_clicked)
+        
+        # Agregar widgets al layout de dirección
+        self.path_layout.addWidget(self.path_entry)
+        self.path_layout.addWidget(self.browse_button)
+
+        # Layout inferior para los botones
+        self.buttons_layout = QHBoxLayout()
+        self.create_buttons()
+        
+        # Agregar los layouts al layout principal
+        self.vertical_layout.addLayout(self.path_layout)
+        self.vertical_layout.addLayout(self.buttons_layout)
+
         self.main_layout = QHBoxLayout(self)
         self.create_buttons()
         
@@ -46,20 +74,20 @@ class NavigationBar(QWidget):
             'back_button': QPushButton(QIcon("Assets/flecha-pequena-izquierda.svg"), ""),
             'forward_button': QPushButton(QIcon("Assets/Adelante.svg"), ""),
             'up_button': QPushButton(QIcon("Assets/arriba.svg"), ""),
-            'select_folder_button': QPushButton("Seleccionar Carpeta")
+            # 'select_folder_button': QPushButton("Seleccionar Carpeta")
         }
 
         # Añadir botones comunes al layout inmediatamente
         for button in self.common_buttons.values():
             button.hide()  # Ocultar inicialmente
-            self.main_layout.addWidget(button)
+            self.buttons_layout.addWidget(button)
 
         # Create button attributes for direct access
         self.home_button = self.common_buttons['home_button']
         self.back_button = self.common_buttons['back_button']
         self.forward_button = self.common_buttons['forward_button']
         self.up_button = self.common_buttons['up_button']
-        self.select_folder_button = self.common_buttons['select_folder_button']
+        # self.select_folder_button = self.common_buttons['select_folder_button']
         
         # View-specific buttons
         self.view_buttons = {
@@ -79,7 +107,7 @@ class NavigationBar(QWidget):
         for mode_buttons in self.view_buttons.values():
             for button in mode_buttons.values():
                 button.hide()  # Ocultar inicialmente
-                self.main_layout.addWidget(button)
+                self.buttons_layout.addWidget(button)
 
         # Create view-specific button attributes
         self.date_view_button = self.view_buttons[ViewMode.NORMAL]['date_view_button']
@@ -88,16 +116,29 @@ class NavigationBar(QWidget):
         self.order_by_date_button = self.view_buttons[ViewMode.DATE]['order_by_date_button']
         self.duplicates_button = self.view_buttons[ViewMode.DUPLICATES]['duplicates_button']
 
-    def clear_layout(self):
-        """Remove all widgets from layout"""
-        while self.main_layout.count():
-            item = self.main_layout.takeAt(0)
-            if item.widget():
-                item.widget().hide()
+    def _on_path_entered(self):
+        """Slot interno para manejar cuando se presiona Enter en el path_entry"""
+        self.path_changed.emit(self.path_entry.text())
+        
+    def _on_browse_clicked(self):
+        """Slot interno para manejar el click en el botón browse"""
+        directory = QFileDialog.getExistingDirectory(
+            self,
+            "Seleccionar Directorio",
+            self.path_entry.text(),
+            QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+        )
+        if directory:
+            self.directory_selected.emit(directory)
+
+    def update_path_display(self, path: str):
+        """Actualizar el texto mostrado en el path_entry"""
+        self.path_entry.setText(path)
 
         
 
     def update_view(self, view_mode: ViewMode):
+        
         """Update the navigation bar for the specified view mode"""
         self.setUpdatesEnabled(False)  # Deshabilitar actualizaciones durante el cambio de pantalla
         self.current_view = view_mode
@@ -116,23 +157,6 @@ class NavigationBar(QWidget):
                 button.show()
         
         # Add stretch at the end
-        self.main_layout.addStretch()
+        self.buttons_layout.addStretch()
 
         self.setUpdatesEnabled(True) # Vuelve a activar las actualizaciones
-
-
-    def get_button(self, button_name: str):
-        """Get a button by its name"""
-        if button_name in self.common_buttons:
-            return self.common_buttons[button_name]
-            
-        for view_buttons in self.view_buttons.values():
-            if button_name in view_buttons:
-                return view_buttons[button_name]
-        return None
-        
-    def connect_button(self, button_name: str, slot):
-        """Connect a button's clicked signal to a slot"""
-        button = self.get_button(button_name)
-        if button:
-            button.clicked.connect(slot)
