@@ -91,11 +91,22 @@ class DuplicatesView(QWidget):
                 self.table_widget.insertRow(row_position)
 
                 # Insertar los datos del archivo en las celdas correspondientes
-                self.table_widget.setItem(row_position, 0, QTableWidgetItem(str(group_id)))  # ID de duplicado
-                self.table_widget.setItem(row_position, 1, QTableWidgetItem(file['name']))
-                self.table_widget.setItem(row_position, 2, QTableWidgetItem(file['path']))
-                self.table_widget.setItem(row_position, 3, SizeTableWidgetItem(file['size']))
-                self.table_widget.setItem(row_position, 4, DateTableWidgetItem(file['date']))
+                id_item = QTableWidgetItem(str(group_id))
+                id_item.setFlags(id_item.flags() & ~Qt.ItemIsEditable)  # Hacer la celda no editable
+                self.table_widget.setItem(row_position, 0, id_item)  # ID de duplicado
+                name_item = QTableWidgetItem(file['name'])
+                name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)  # Hacer la celda no editable
+                self.table_widget.setItem(row_position, 1, name_item)
+                path_item  = QTableWidgetItem(file['path'])
+                path_item.setFlags(path_item.flags() & ~Qt.ItemIsEditable)
+                self.table_widget.setItem(row_position, 2, path_item)
+                size_item = SizeTableWidgetItem(file['size'])
+                size_item.setFlags(size_item.flags() & ~Qt.ItemIsEditable)  # Hacer la celda no editable
+                self.table_widget.setItem(row_position, 3, size_item)
+
+                date_item = DateTableWidgetItem(file['date'])
+                date_item.setFlags(date_item.flags() & ~Qt.ItemIsEditable)  # Hacer la celda no editable
+                self.table_widget.setItem(row_position, 4, date_item)
             
             group_id += 1
         
