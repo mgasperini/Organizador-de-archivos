@@ -5,13 +5,14 @@ class HistoryManager:
 
     def update_history(self, path):
         """Actualizar el historial de navegación."""
-        print(self.history)
+        # print(self.history,self.history[self.history_index])
         if self.history_index < len(self.history) - 1:
             self.history = self.history[:self.history_index + 1]
 
         if not self.history or self.history[-1] != path:
             self.history.append(path)
             self.history_index = len(self.history) - 1
+        # print(self.history,self.history[self.history_index])
 
     def get_previous_path(self):
         if self.history_index > 0:

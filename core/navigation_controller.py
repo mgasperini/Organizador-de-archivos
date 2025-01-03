@@ -16,8 +16,6 @@ class NavigationController(QObject):
         self.current_path = self.file_organizer.current_directory
 
         self.history_manager = HistoryManager(self.current_path)
-        self.history = self.history_manager.history
-        self.history_index = self.history_manager.history_index
 
         self.actual_view = self.file_organizer.file_view
         self.hash_scan_thread = None
@@ -80,7 +78,7 @@ class NavigationController(QObject):
             self.actual_view = self.file_organizer.date_view
             self.navigation_bar.update_view(ViewMode.DATE)
             self.file_organizer.file_view.start_date_scan(
-                self.history[self.history_index])
+                self.history_manager.history[self.history_manager.history_index])
 
         else:
             # Cambiar a vista de archivos
@@ -98,7 +96,7 @@ class NavigationController(QObject):
             self.file_organizer.change_view(self.file_organizer.file_view)
             self.navigation_bar.update_view(ViewMode.NORMAL)
             self.actual_view.update_root_index(
-                self.history[self.history_index])
+                self.history_manager.history[self.history_manager.history_index])
 
     def toggle_duplicate_view(self):
         """Cambia a la vista de archivos duplicados"""
@@ -127,7 +125,7 @@ class NavigationController(QObject):
         self.duplicates_view = duplicates_view
         self.stack_widget = stack_widget
 
-        current_directory = self.history[self.history_index]
+        current_directory = self.history_manager.history[self.history_manager.history_index]
 
         # Configurar UI
         self.progress_bar.setVisible(True)
@@ -162,14 +160,14 @@ class NavigationController(QObject):
 
         scan_manager = FileScanManager()
         self.scan_thread = scan_manager.scan_date_view(
-            self.history[self.history_index],
+            self.history_manager.history[self.history_manager.history_index],
             self.file_organizer.progress_bar.setValue, self.populate_date_view)
 
         # # Limpiar thread anterior si existe
         # if hasattr(self, 'scan_thread') and self.scan_thread is not None:
         #     if self.scan_thread.isRunning():
         #         self.scan_thread.wait()  # Esperar a que termine
-        # self.scan_thread = FileScanWorker(self.history[self.history_index])
+        # self.scan_thread = FileScanWorker(self.history_manager.history[self.history_manager.history_index])
         # self.scan_thread.progress.connect(self.file_organizer.progress_bar.setValue)
         # self.scan_thread.finished.connect(self.populate_date_view)
         # self.scan_thread.start()
