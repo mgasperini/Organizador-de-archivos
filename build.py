@@ -18,7 +18,8 @@ def build_exe():
                           'qdarkstyle',
                           'qdarkstyle.LightPalette',
                           'enum.Enum',
-                          'sys'
+                          'sys',
+                          'send2trash'
                        ]
     
     # Lista base de opciones

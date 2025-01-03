@@ -2,6 +2,9 @@ from PyQt5.QtWidgets import QWidget, QTableWidget, QTableWidgetItem, QVBoxLayout
 from PyQt5.QtCore import Qt
 import datetime
 import os
+import platform
+import subprocess
+from send2trash import send2trash
 
 class SizeTableWidgetItem(QTableWidgetItem):
     def __init__(self, size_in_bytes):
@@ -35,8 +38,8 @@ class DuplicatesView(QWidget):
         # Crear un QTableWidget con 4 columnas
         self.table_widget = QTableWidget(self)
         self.table_widget.setRowCount(0)  # Inicialmente no hay filas
-        self.table_widget.setColumnCount(4)  # Cuatro columnas: Nombre, Ruta, Tamaño, Fecha
-        self.table_widget.setHorizontalHeaderLabels(['Nombre', 'Ruta', 'Tamaño', 'Fecha'])
+        self.table_widget.setColumnCount(5)  # Cuatro columnas: Nombre, Ruta, Tamaño, Fecha
+        self.table_widget.setHorizontalHeaderLabels(['ID','Nombre', 'Ruta', 'Tamaño', 'Fecha'])
 
         # Ajustar el tamaño de las columnas
         header = self.table_widget.horizontalHeader()
@@ -44,10 +47,13 @@ class DuplicatesView(QWidget):
 
         header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  
         header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  
-        header.setSectionResizeMode(3, QHeaderView.Stretch) 
+        header.setSectionResizeMode(2, QHeaderView.Stretch)  
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents) 
+        header.setSectionResizeMode(4, QHeaderView.ResizeToContents) 
+
+        # Conectar doble clic en las celdas
+        self.table_widget.cellDoubleClicked.connect(self.handle_double_click)
         
-        # self.table_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
         # Llenar la tabla con los archivos duplicados
         self.populate_table(self.duplicate_files)
@@ -72,25 +78,51 @@ class DuplicatesView(QWidget):
         # Agregar los archivos duplicados al QTableWidget
         self.duplicate_files = duplicate_files
         self.table_widget.setRowCount(0) #Limpia la tabla
+
+        # Asignar un ID único a cada grupo de duplicados
+        group_id = 1
         for hash_val, data in self.duplicate_files.items():
             files = data['files']
+            if len(files) < 2:  # Omitir grupos con menos de 2 archivos
+                continue
+
             for file in files:
                 row_position = self.table_widget.rowCount()
                 self.table_widget.insertRow(row_position)
 
                 # Insertar los datos del archivo en las celdas correspondientes
-                self.table_widget.setItem(row_position, 0, QTableWidgetItem(file['name']))
-                self.table_widget.setItem(row_position, 1, QTableWidgetItem(file['path']))
-                self.table_widget.setItem(row_position, 2, SizeTableWidgetItem(file['size']))
-                self.table_widget.setItem(row_position, 3, DateTableWidgetItem(file['date']))
+                self.table_widget.setItem(row_position, 0, QTableWidgetItem(str(group_id)))  # ID de duplicado
+                self.table_widget.setItem(row_position, 1, QTableWidgetItem(file['name']))
+                self.table_widget.setItem(row_position, 2, QTableWidgetItem(file['path']))
+                self.table_widget.setItem(row_position, 3, SizeTableWidgetItem(file['size']))
+                self.table_widget.setItem(row_position, 4, DateTableWidgetItem(file['date']))
+            
+            group_id += 1
         
         self.table_widget.setSortingEnabled(True)
-        self.table_widget.sortItems(2, Qt.DescendingOrder)  # 2 es la columna "size", y ordenamos de mayor a menor
+        self.table_widget.sortItems(3, Qt.DescendingOrder)  # 3 es la columna "size", y ordenamos de mayor a menor
 
         # Agregar comportamiento al hacer clic en las cabeceras de las columnas
-        self.table_widget.setHorizontalHeaderLabels(["Nombre", "Ruta", "Tamaño", "Fecha"])
+        self.table_widget.setHorizontalHeaderLabels(["ID","Nombre", "Ruta", "Tamaño", "Fecha"])
         self.table_widget.horizontalHeader().sectionClicked.connect(self.sort_table)
     
+    def handle_double_click(self, row, column):
+        """Abrir el archivo si se hace doble clic en la columna de Ruta."""
+        if column == 2:  # Columna de Ruta
+            file_path = self.table_widget.item(row, column).text()
+            if os.path.exists(file_path):
+                try:
+                    if platform.system() == "Windows":
+                        os.startfile(file_path)
+                    elif platform.system() == "Darwin":  # macOS
+                        subprocess.run(["open", file_path])
+                    else:  # Linux y otros
+                        subprocess.run(["xdg-open", file_path])
+                except Exception as e:
+                    QMessageBox.warning(self, 'Error', f'No se pudo abrir el archivo: {e}')
+            else:
+                QMessageBox.warning(self, 'Error', 'El archivo no existe.')
+
     def sort_table(self, index):
         """
         Ordena la tabla de acuerdo a la columna seleccionada.
@@ -122,25 +154,37 @@ class DuplicatesView(QWidget):
         msg_box.button(QMessageBox.Yes).setText('Sí')
 
         confirmation = msg_box.exec()
-        if confirmation == QMessageBox.Yes:
-            # Eliminar los archivos seleccionados
-            for row in selected_rows:
-                file_path = self.table_widget.item(row.row(), 1).text()
-                if os.path.exists(file_path):
-                    try:
-                        os.remove(file_path)
-                        self.table_widget.setRowCount(0)
-                        self.table_widget.clearContents()
-                        # Eliminar el archivo de la lista de duplicados
-                        self.duplicate_files = self.remove_file_from_duplicates(file_path)
-                        self.populate_table(self.duplicate_files)
+        if confirmation != QMessageBox.Yes:
+            return
+        
+        file_paths = [self.table_widget.item(row.row(), 2).text() for row in selected_rows]
 
-                    except Exception as e:
-                        QMessageBox.warning(self, 'Error', f'No se pudo eliminar el archivo: {e}')
-                    
-                else:
-                    QMessageBox.warning(self, 'Error', f'El archivo no existe: {file_path}')
+        # Intentar eliminar los archivos
+        for file_path in file_paths:
+            if os.path.exists(file_path):
+                try:
+                    # Normalizar la ruta
+                    normalized_path = os.path.abspath(os.path.normpath(file_path))
+                    # print(platform.system())
 
+                    # Agregar prefijo para rutas largas en Windows
+                    if platform.system() == "Windows" and len(normalized_path) > 260:
+                        normalized_path = f"\\\\?\\{normalized_path}"
+
+                    # os.remove(file_path)
+                    send2trash(file_path.replace('/','\\'))  # Mover a la papelera
+                except Exception as e:
+                    QMessageBox.warning(self, 'Error', f'No se pudo eliminar el archivo: {e}')
+            else:
+                QMessageBox.warning(self, 'Error', f'El archivo no existe: {file_path}')
+
+            # Eliminar los archivos de la lista de duplicados
+        for file_path in file_paths:
+            self.duplicate_files = self.remove_file_from_duplicates(file_path)
+        
+        self.populate_table(self.duplicate_files)
+
+           
     def remove_file_from_duplicates(self, file_path):
             """Elimina un archivo de la lista de duplicados."""
             new_duplicate_files = self.duplicate_files.copy()
@@ -166,7 +210,7 @@ class DuplicatesView(QWidget):
     
     def update_root_index(self):
         """Actualiza la vista cuando se cambia el directorio."""
-        self.populate_tree(self.get_duplicate_files)
+        self.populate_table(self.duplicate_files)
     
     def get_duplicate_files(self):
         return self.duplicate_files
