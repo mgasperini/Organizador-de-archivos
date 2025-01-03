@@ -69,13 +69,25 @@ class NavigationBar(QWidget):
     def create_buttons(self):
         """Create all possible buttons"""
         # Common buttons (always visible)
+
+        # Visual Studio
         self.common_buttons = {
-            'home_button': QPushButton(QIcon("Assets/home.svg"), "Home"),
-            'back_button': QPushButton(QIcon("Assets/flecha-pequena-izquierda.svg"), "Atrás"),
-            'forward_button': QPushButton(QIcon("Assets/Adelante.svg"), "Adelante"),
-            'up_button': QPushButton(QIcon("Assets/arriba.svg"), "Subir"),
+            'home_button': QPushButton(QIcon("Assets/home.svg"), ""),
+            'back_button': QPushButton(QIcon("Assets/flecha-pequena-izquierda.svg"),  ""),
+            'forward_button': QPushButton(QIcon("Assets/Adelante.svg"),  ""),
+            'up_button': QPushButton(QIcon("Assets/arriba.svg"),  ""),
             # 'select_folder_button': QPushButton("Seleccionar Carpeta")
         }
+
+        # Aplicación
+
+        # self.common_buttons = {
+        #     'home_button': QPushButton(QIcon("Assets/home.svg"), "Home"),
+        #     'back_button': QPushButton(QIcon("Assets/flecha-pequena-izquierda.svg"), "Atrás"),
+        #     'forward_button': QPushButton(QIcon("Assets/Adelante.svg"), "Adelante"),
+        #     'up_button': QPushButton(QIcon("Assets/arriba.svg"), "Subir"),
+        #     # 'select_folder_button': QPushButton("Seleccionar Carpeta")
+        # }
 
         # Añadir botones comunes al layout inmediatamente
         for button in self.common_buttons.values():
@@ -160,3 +172,12 @@ class NavigationBar(QWidget):
         self.buttons_layout.addStretch()
 
         self.setUpdatesEnabled(True) # Vuelve a activar las actualizaciones
+    
+
+    def select_folder(self, current_path):
+        new_folder = QFileDialog.getExistingDirectory(
+            None,
+            "Seleccionar Carpeta",
+            current_path
+        )
+        return new_folder

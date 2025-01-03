@@ -47,3 +47,12 @@ class FileScanWorker(QThread):
             })
         except Exception as e:
             print(f"Error processing {full_path}: {e}")
+
+class FileScanManager:
+    def scan_date_view(self, directory, progress_callback, finished_callback):
+        
+        thread = FileScanWorker(directory)
+        thread.progress.connect(progress_callback)
+        thread.finished.connect(finished_callback)
+        thread.start()
+        return thread
