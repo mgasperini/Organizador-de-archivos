@@ -20,6 +20,7 @@ class FileOrganizerWidget(QWidget):
         super().__init__(parent)
         self.current_directory = QDir.homePath()
         self.actual_view = None
+        self.theme_manager = ThemeManager()
         self.setup_ui()
         self.setup_connections()
 
@@ -70,8 +71,8 @@ class FileOrganizerWidget(QWidget):
         
         # Sidebar connections
 
-        self.theme_manager = ThemeManager()
-        self.sidebar.theme_change_button.clicked.connect(self.theme_manager.toggle_theme)
+        # self.theme_manager = ThemeManager()
+        # self.sidebar.theme_change_button.clicked.connect(self.theme_manager.toggle_theme)
         
 
     def change_view(self, view_widget):
@@ -109,7 +110,7 @@ class FileOrganizerWidget(QWidget):
             # Limpiar thread anterior si existe
             if hasattr(self, 'scan_thread') and self.scan_thread is not None:
                 if self.scan_thread.isRunning():
-                    self.scan_thread.wait()  # Esperar a que termine
+                    self.scan_thread.quit()  # Esperar a que termine
             FileOrganizer.reorganize_by_date(
                 self.date_view.get_files_by_date(),
                 self.navigation_controller.current_path

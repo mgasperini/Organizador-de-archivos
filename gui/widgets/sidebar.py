@@ -1,9 +1,13 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QAction
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QIcon
+from core.theme_manager import ThemeManager
 
 class Sidebar(QWidget):
+
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.theme = ThemeManager()
         self.setup_ui()
         
     def setup_ui(self):
@@ -28,9 +32,10 @@ class Sidebar(QWidget):
         upper_container.setLayout(upper_layout)
 
         # Botón de tema con tamaño fijo
-        self.theme_change_button = QPushButton("Toggle Theme")
-        self.theme_change_button.setFixedHeight(50)
-        # self.theme_change_button.setIcon(QIcon("path/to/theme_icon.png"))
+        self.theme_change_button = QPushButton("Modo Claro")
+        self.theme_change_button.setFixedHeight(30)
+        self.theme_change_button.setIcon(QIcon("Assets/sol.svg"))
+        
         
         # Agregar widgets al layout principal
         main_layout.addWidget(upper_container, stretch=1)  # stretch=1 hace que tome el espacio disponible

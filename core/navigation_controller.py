@@ -1,4 +1,5 @@
 from PyQt5.QtCore import QObject, pyqtSlot
+from PyQt5.QtGui import QIcon
 import os
 from gui.widgets.navigation_bar import ViewMode
 from core.file_hash_scanner import FileHashScanWorker
@@ -64,10 +65,27 @@ class NavigationController(QObject):
             self.toggle_file_view)
         self.file_organizer.sidebar.duplicates_button.clicked.connect(
             self.toggle_duplicate_view)
+        
+        self.file_organizer.sidebar.theme_change_button.clicked.connect(self.toggle_theme)
 
         # File view connections
         self.file_organizer.file_view.file_list.doubleClicked.connect(
             self.navigate_directory)
+        
+
+    def toggle_theme(self):
+            """Alterna el tema y actualiza el botón."""
+            self.file_organizer.theme_manager.toggle_theme()  # Cambiar el tema en ThemeManager
+            self.update_theme_button()  # Actualizar el botón
+
+    def update_theme_button(self):
+        """Actualiza el texto e ícono del botón según el estado del tema."""
+        if self.file_organizer.theme_manager.is_dark_mode:
+            self.file_organizer.sidebar.theme_change_button.setText("Modo Claro")
+            self.file_organizer.sidebar.theme_change_button.setIcon(QIcon("Assets/sol.svg"))
+        else:
+            self.file_organizer.sidebar.theme_change_button.setText("Modo Oscuro")
+            self.file_organizer.sidebar.theme_change_button.setIcon(QIcon("Assets/luna.svg"))
 
     def toggle_date_view(self):
         """Alternar entre vista de archivos y vista de fecha"""
@@ -162,19 +180,16 @@ class NavigationController(QObject):
         self.file_organizer.progress_bar.setVisible(True)
         self.file_organizer.progress_bar.setValue(0)
 
+                # Limpiar thread anterior si existe
+        if hasattr(self, 'scan_thread') and self.scan_thread is not None:
+            if self.scan_thread.isRunning():
+                self.scan_thread.quit()  # Finalizarlo
+
         scan_manager = FileScanManager()
         self.scan_thread = scan_manager.scan_date_view(
             self.history_manager.history[self.history_manager.history_index],
             self.file_organizer.progress_bar.setValue, self.populate_date_view)
 
-        # # Limpiar thread anterior si existe
-        # if hasattr(self, 'scan_thread') and self.scan_thread is not None:
-        #     if self.scan_thread.isRunning():
-        #         self.scan_thread.wait()  # Esperar a que termine
-        # self.scan_thread = FileScanWorker(self.history_manager.history[self.history_manager.history_index])
-        # self.scan_thread.progress.connect(self.file_organizer.progress_bar.setValue)
-        # self.scan_thread.finished.connect(self.populate_date_view)
-        # self.scan_thread.start()
 
     def populate_date_view(self, files_by_date):
         self.file_organizer.date_view.populate_tree(files_by_date)
